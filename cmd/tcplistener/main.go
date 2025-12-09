@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 )
@@ -60,14 +61,15 @@ func readAndPrintLinesFromTcpConn() {
 
 	fmt.Println("Listening connections on " + addr)
 
-	conn, err := listner.Accept()
-	if err != nil {
-		fmt.Println("Error listening on network: " + err.Error())
-		os.Exit(-1)
-	}
-	c := getLinesChannel(conn)
-	for s := range c {
-		fmt.Printf("read: %s\n", s)
+	for {
+		conn, err := listner.Accept()
+		if err != nil {
+			fmt.Println("Error accepting a connection: " + err.Error())
+			log.Fatal("error", err)
+		}
+		for s := range getLinesChannel(conn) {
+			fmt.Printf("read: %s\n", s)
+		}
 	}
 	fmt.Println("Connection has been closed")
 }
