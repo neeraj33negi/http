@@ -11,7 +11,6 @@ import (
 )
 
 func main() {
-	// readAndPrintFileInChunks("messages.txt")
 	readAndPrintLinesFromTcpConn()
 }
 
@@ -70,18 +69,5 @@ func readAndPrintLinesFromTcpConn() {
 		for s := range getLinesChannel(conn) {
 			fmt.Printf("read: %s\n", s)
 		}
-	}
-	fmt.Println("Connection has been closed")
-}
-
-func readAndPrintFileInChunks(filepath string) {
-	file, err := os.Open(filepath)
-	if err != nil {
-		fmt.Println("Error reading file:", err)
-		return
-	}
-	c := getLinesChannel(file)
-	for s := range c {
-		fmt.Printf("read: %s\n", s)
 	}
 }
