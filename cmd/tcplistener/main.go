@@ -1,51 +1,16 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
+
+	"github.com/neeraj33negi/http/internal/request"
 )
 
 func main() {
 	readAndPrintLinesFromTcpConn()
-}
-
-func getLinesChannel(f io.ReadCloser) <-chan string {
-	c := make(chan string, 1)
-	reader := bufio.NewReader(f)
-	str := ""
-	go func() {
-		defer close(c)
-		for {
-			data := make([]byte, 8)
-			n, err := reader.Read(data)
-			if n == 0 {
-				if err == io.EOF {
-					f.Close()
-					return
-				}
-				if err != nil {
-					fmt.Println("Error scanning" + err.Error())
-					return
-				}
-			}
-			data = data[:n]
-			if i := bytes.IndexByte(data, '\n'); i != -1 {
-				str += string(data[:i])
-				data = data[i+1:]
-				if len(str) > 0 {
-					c <- str
-				}
-				str = ""
-			}
-			str += string(data)
-		}
-	}()
-	return c
 }
 
 func readAndPrintLinesFromTcpConn() {
@@ -66,8 +31,15 @@ func readAndPrintLinesFromTcpConn() {
 			fmt.Println("Error accepting a connection: " + err.Error())
 			log.Fatal("error", err)
 		}
-		for s := range getLinesChannel(conn) {
-			fmt.Printf("read: %s\n", s)
+		r, err := request.RequestFromReader(conn)
+		if err != nil {
+			fmt.Println("Error reading request " + err.Error())
+			log.Fatal("error", err)
 		}
+		fmt.Printf("Method: %s\nHttpVersion: %s\nTarget: %s\n",
+			r.RequestLine.Method,
+			r.RequestLine.HttpVersion,
+			r.RequestLine.RequestTarget,
+		)
 	}
 }
