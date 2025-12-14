@@ -1,19 +1,37 @@
 package request
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"slices"
-	"strings"
+)
+
+type parseState int
+
+const (
+	initalized parseState = iota
+	done
 )
 
 var SUPPORTED_METHODS = []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"}
+var ERR_MALFORMED_REQUEST = fmt.Errorf("malformed request line")
+var ERR_HTTP_VERSION_UNSUPPORTED = fmt.Errorf("http version not supported")
+var ERR_METHOD_UNSUPPORTED = fmt.Errorf("method not supported")
+var SEPARATOR = []byte("\r\n")
 
 type RequestLine struct {
 	HttpVersion   string
 	Method        string
 	RequestTarget string
+}
+
+type Request struct {
+	RequestLine RequestLine
+	Headers     map[string]string
+	Body        []byte
+	parseState  parseState
 }
 
 func (rl *RequestLine) ValidHTTP() bool {
@@ -24,60 +42,70 @@ func (rl *RequestLine) ValidMethod() bool {
 	return slices.Contains(SUPPORTED_METHODS, rl.Method)
 }
 
-type Request struct {
-	RequestLine RequestLine
-	Headers     map[string]string
-	Body        []byte
+func (r *Request) parse(data []byte) (int, error) {
+	requestLine, n, err := parseRequestLine(data)
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, nil
+	}
+	r.parseState = done
+	r.RequestLine = *requestLine
+	return n, nil
 }
 
-var ERR_MALFORMED_REQUEST = fmt.Errorf("malformed request line")
-var ERR_HTTP_VERSION_UNSUPPORTED = fmt.Errorf("http version not supported")
-var ERR_METHOD_UNSUPPORTED = fmt.Errorf("method not supported")
-
-var SEPARATOR = "\r\n"
-
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	req, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, errors.Join(fmt.Errorf("unable to readStream"), err)
+	request := Request{parseState: initalized}
+	buff := make([]byte, 1024)
+	buffLen := 0
+	for request.parseState != done {
+		n, err := reader.Read(buff[buffLen:])
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("unable to readStream"), err)
+		}
+		buffLen += n
+		buffN, err := request.parse(buff[:buffLen+n])
+		if err != nil {
+			return nil, err
+		}
+		copy(buff, buff[buffN:buffLen])
+		buffLen -= buffN
 	}
-	requestLine, _, err := parseRequestLine(string(req))
-	if err != nil {
-		return nil, err
-	}
-	return &Request{RequestLine: *requestLine}, nil
+
+	return &request, nil
 }
 
 // Request line is first line of an HTTP request i.e. METHOD, Path, HttpVersion information line
-func parseRequestLine(req string) (*RequestLine, string, error) {
-	idx := strings.Index(req, SEPARATOR)
+func parseRequestLine(b []byte) (*RequestLine, int, error) {
+	idx := bytes.Index(b, SEPARATOR)
 	if idx == -1 {
-		return nil, req, ERR_MALFORMED_REQUEST
+		return nil, 0, nil
 	}
-	startLine := req[:idx]
-	restMessage := req[idx+len(SEPARATOR):]
+	startLine := b[:idx]
+	// restMessage := b[idx+len(SEPARATOR):]
 
-	parts := strings.Split(startLine, " ")
+	parts := bytes.Split(startLine, []byte(" "))
 	if len(parts) != 3 {
-		return nil, req, ERR_MALFORMED_REQUEST
+		return nil, 0, ERR_MALFORMED_REQUEST
 	}
 
-	httpParts := strings.Split(parts[2], "/")
+	httpParts := bytes.Split(parts[2], []byte("/"))
 	if len(httpParts) != 2 {
-		return nil, restMessage, ERR_MALFORMED_REQUEST
+		return nil, len(startLine), ERR_MALFORMED_REQUEST
 	}
 	rl := RequestLine{
-		HttpVersion:   httpParts[1],
-		Method:        parts[0],
-		RequestTarget: parts[1],
+		HttpVersion:   string(httpParts[1]),
+		Method:        string(parts[0]),
+		RequestTarget: string(parts[1]),
 	}
 	if !rl.ValidHTTP() {
-		return nil, restMessage, ERR_HTTP_VERSION_UNSUPPORTED
+		return nil, len(startLine), ERR_HTTP_VERSION_UNSUPPORTED
 	}
 
 	if !rl.ValidMethod() {
-		return nil, restMessage, ERR_METHOD_UNSUPPORTED
+		return nil, len(startLine), ERR_METHOD_UNSUPPORTED
 	}
 
-	return &rl, restMessage, nil
+	return &rl, len(startLine), nil
 }
