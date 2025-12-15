@@ -51,3 +51,16 @@ func TestInvalidSpacingHeader(t *testing.T) {
 	assert.Equal(t, 0, n)
 	assert.False(t, done)
 }
+
+// Test: Multiple value headers
+func TestMultipleValueHeader(t *testing.T) {
+	headers := NewHeaders()
+	data := []byte("Host: localhost:42069\r\nApi: rkey\r\nApi: okey\r\nApi: pkey\r\n\r\n")
+	n, done, err := headers.Parse(data)
+	require.NoError(t, err)
+	require.NotNil(t, headers)
+	assert.Equal(t, "localhost:42069", headers.Get("Host"))
+	assert.Equal(t, "rkey,okey,pkey", headers.Get("Api"))
+	assert.Equal(t, 58, n)
+	assert.True(t, done)
+}

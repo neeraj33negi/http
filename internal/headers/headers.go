@@ -64,7 +64,11 @@ func (h *Headers) Parse(b []byte) (int, bool, error) {
 		if !validFieldName(k) {
 			return 0, done, MALFORMED_HEADER_NAME
 		}
-		h.Put(k, v)
+		if len(h.Get(k)) == 0 {
+			h.Put(k, v)
+		} else {
+			h.Put(k, fmt.Sprintf("%s,%s", h.Get(k), v))
+		}
 		read += idx + len(CRLF)
 	}
 	return read, done, nil
