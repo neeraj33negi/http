@@ -3,15 +3,30 @@ package headers
 import (
 	"bytes"
 	"fmt"
+	"slices"
+	"strings"
 )
 
 var CRLF = []byte("\r\n")
 var MALFORMED_HEADER = fmt.Errorf("malformed field line")
+var MALFORMED_HEADER_NAME = fmt.Errorf("malformed field name")
 
-type Headers map[string]string
+type Headers struct {
+	headers map[string]string
+}
 
-func NewHeaders() Headers {
-	return make(Headers)
+func NewHeaders() *Headers {
+	return &Headers{
+		headers: map[string]string{},
+	}
+}
+
+func (h *Headers) Get(name string) string {
+	return h.headers[strings.ToLower(name)]
+}
+
+func (h *Headers) Put(name, value string) {
+	h.headers[strings.ToLower(name)] = value
 }
 
 func parseHeader(fieldLine []byte) (string, string, error) {
@@ -28,7 +43,7 @@ func parseHeader(fieldLine []byte) (string, string, error) {
 	return string(key), string(value), nil
 }
 
-func (h Headers) Parse(b []byte) (int, bool, error) {
+func (h *Headers) Parse(b []byte) (int, bool, error) {
 	read := 0
 	done := false
 	for !done {
@@ -46,9 +61,34 @@ func (h Headers) Parse(b []byte) (int, bool, error) {
 		if err != nil {
 			return 0, done, err
 		}
-		h[k] = v
+		if !validFieldName(k) {
+			return 0, done, MALFORMED_HEADER_NAME
+		}
+		h.Put(k, v)
 		read += idx + len(CRLF)
 	}
-
 	return read, done, nil
+}
+
+var validTokens = []byte{'!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~'}
+
+func validFieldName(s string) bool {
+	if len(s) < 1 {
+		return false
+	}
+	valid := true
+	for _, ch := range s {
+		if (ch >= 'A' && ch <= 'Z') ||
+			(ch >= 'a' && ch <= 'z') ||
+			(ch >= '0' && ch <= '9') ||
+			slices.Contains(validTokens, byte(ch)) {
+			continue
+		} else {
+			valid = false
+		}
+		if !valid {
+			break
+		}
+	}
+	return valid
 }
