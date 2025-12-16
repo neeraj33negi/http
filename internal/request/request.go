@@ -6,19 +6,24 @@ import (
 	"fmt"
 	"io"
 	"slices"
+
+	"github.com/neeraj33negi/http/internal/headers"
 )
 
 type parseState int
 
 const (
-	initalized parseState = iota
-	done
+	Initalized parseState = iota
+	StateHeaders
+	StateError
+	Done
 )
 
 var SUPPORTED_METHODS = []string{"GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"}
 var ERR_MALFORMED_REQUEST = fmt.Errorf("malformed request line")
 var ERR_HTTP_VERSION_UNSUPPORTED = fmt.Errorf("http version not supported")
 var ERR_METHOD_UNSUPPORTED = fmt.Errorf("method not supported")
+var ERR_REQUEST_STATE_ERR = fmt.Errorf("request parse error")
 var SEPARATOR = []byte("\r\n")
 
 type RequestLine struct {
@@ -29,9 +34,16 @@ type RequestLine struct {
 
 type Request struct {
 	RequestLine RequestLine
-	Headers     map[string]string
+	Headers     *headers.Headers
 	Body        []byte
 	parseState  parseState
+}
+
+func newRequest() *Request {
+	return &Request{
+		parseState: Initalized,
+		Headers:    headers.NewHeaders(),
+	}
 }
 
 func (rl *RequestLine) ValidHTTP() bool {
@@ -43,29 +55,56 @@ func (rl *RequestLine) ValidMethod() bool {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	requestLine, n, err := parseRequestLine(data)
-	if err != nil {
-		return 0, err
+	read := 0
+outer:
+	for {
+		switch r.parseState {
+		case StateError:
+			return 0, ERR_REQUEST_STATE_ERR
+		case Initalized:
+			requestLine, n, err := parseRequestLine(data[read:])
+			if err != nil {
+				r.parseState = StateError
+				return 0, err
+			}
+			if n == 0 {
+				break outer
+			}
+			r.parseState = StateHeaders
+			r.RequestLine = *requestLine
+			read += n
+		case StateHeaders:
+			n, done, err := r.Headers.Parse(data[read:])
+			if err != nil {
+				return 0, err
+			}
+			read += n
+			if n == 0 {
+				break outer
+			}
+			if done {
+				r.parseState = Done
+			}
+		case Done:
+			break outer
+		default:
+			panic("solar flare probably")
+		}
 	}
-	if n == 0 {
-		return 0, nil
-	}
-	r.parseState = done
-	r.RequestLine = *requestLine
-	return n, nil
+	return read, nil
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	request := Request{parseState: initalized}
+	request := newRequest()
 	buff := make([]byte, 1024)
 	buffLen := 0
-	for request.parseState != done {
+	for request.parseState != Done {
 		n, err := reader.Read(buff[buffLen:])
 		if err != nil {
 			return nil, errors.Join(fmt.Errorf("unable to readStream"), err)
 		}
 		buffLen += n
-		buffN, err := request.parse(buff[:buffLen+n])
+		buffN, err := request.parse(buff[:buffLen])
 		if err != nil {
 			return nil, err
 		}
@@ -73,7 +112,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		buffLen -= buffN
 	}
 
-	return &request, nil
+	return request, nil
 }
 
 // Request line is first line of an HTTP request i.e. METHOD, Path, HttpVersion information line
@@ -83,7 +122,7 @@ func parseRequestLine(b []byte) (*RequestLine, int, error) {
 		return nil, 0, nil
 	}
 	startLine := b[:idx]
-	// restMessage := b[idx+len(SEPARATOR):]
+	read := idx + len(SEPARATOR)
 
 	parts := bytes.Split(startLine, []byte(" "))
 	if len(parts) != 3 {
@@ -107,5 +146,5 @@ func parseRequestLine(b []byte) (*RequestLine, int, error) {
 		return nil, len(startLine), ERR_METHOD_UNSUPPORTED
 	}
 
-	return &rl, len(startLine), nil
+	return &rl, read, nil
 }

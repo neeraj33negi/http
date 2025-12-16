@@ -10,6 +10,7 @@ import (
 var CRLF = []byte("\r\n")
 var MALFORMED_HEADER = fmt.Errorf("malformed field line")
 var MALFORMED_HEADER_NAME = fmt.Errorf("malformed field name")
+var validTokens = []byte{'!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~'}
 
 type Headers struct {
 	headers map[string]string
@@ -73,8 +74,6 @@ func (h *Headers) Parse(b []byte) (int, bool, error) {
 	}
 	return read, done, nil
 }
-
-var validTokens = []byte{'!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~'}
 
 func validFieldName(s string) bool {
 	if len(s) < 1 {
