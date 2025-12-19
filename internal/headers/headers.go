@@ -22,6 +22,13 @@ func NewHeaders() *Headers {
 	}
 }
 
+func (h *Headers) Print() {
+	fmt.Println("Headers:")
+	for k, v := range h.headers {
+		fmt.Printf("  - %s: %s\n", k, v)
+	}
+}
+
 func (h *Headers) Get(name string) string {
 	return h.headers[strings.ToLower(name)]
 }

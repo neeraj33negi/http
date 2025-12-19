@@ -46,6 +46,14 @@ func newRequest() *Request {
 	}
 }
 
+func (r *Request) Print() {
+	fmt.Println("Request line:")
+	fmt.Printf("  - Method: %s\n", r.RequestLine.Method)
+	fmt.Printf("  - Target: %s\n", r.RequestLine.RequestTarget)
+	fmt.Printf("  - Version: %s\n", r.RequestLine.HttpVersion)
+	r.Headers.Print()
+}
+
 func (rl *RequestLine) ValidHTTP() bool {
 	return rl.HttpVersion == "1.1"
 }
@@ -112,6 +120,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		buffLen -= buffN
 	}
 
+	request.Print()
 	return request, nil
 }
 
