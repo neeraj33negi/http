@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 
 	"github.com/neeraj33negi/http/internal/headers"
 )
@@ -16,6 +17,7 @@ const (
 	Initalized parseState = iota
 	StateHeaders
 	StateError
+	StateBody
 	Done
 )
 
@@ -24,6 +26,7 @@ var ERR_MALFORMED_REQUEST = fmt.Errorf("malformed request line")
 var ERR_HTTP_VERSION_UNSUPPORTED = fmt.Errorf("http version not supported")
 var ERR_METHOD_UNSUPPORTED = fmt.Errorf("method not supported")
 var ERR_REQUEST_STATE_ERR = fmt.Errorf("request parse error")
+var ERR_INVALID_CONTENT_LENGTH = fmt.Errorf("invalid content-length")
 var SEPARATOR = []byte("\r\n")
 
 type RequestLine struct {
@@ -66,11 +69,15 @@ func (r *Request) parse(data []byte) (int, error) {
 	read := 0
 outer:
 	for {
+		remainingData := data[read:]
+		if len(remainingData) == 0 {
+			break
+		}
 		switch r.parseState {
 		case StateError:
 			return 0, ERR_REQUEST_STATE_ERR
 		case Initalized:
-			requestLine, n, err := parseRequestLine(data[read:])
+			requestLine, n, err := parseRequestLine(remainingData)
 			if err != nil {
 				r.parseState = StateError
 				return 0, err
@@ -82,7 +89,7 @@ outer:
 			r.RequestLine = *requestLine
 			read += n
 		case StateHeaders:
-			n, done, err := r.Headers.Parse(data[read:])
+			n, done, err := r.Headers.Parse(remainingData)
 			if err != nil {
 				return 0, err
 			}
@@ -91,7 +98,29 @@ outer:
 				break outer
 			}
 			if done {
+				if r.Headers.Get("content-length") == "" || r.Headers.Get("content-length") == "0" {
+					r.parseState = Done
+				} else {
+					r.parseState = StateBody
+				}
+			}
+		case StateBody:
+			contentLength, err := strconv.Atoi(r.Headers.Get("content-length"))
+			if err != nil {
+				return 0, ERR_INVALID_CONTENT_LENGTH
+			}
+			if contentLength == 0 {
 				r.parseState = Done
+				break
+			}
+			remainingBodyLength := min(contentLength-len(r.Body), len(remainingData))
+			r.Body = append(r.Body, remainingData[:remainingBodyLength]...)
+			read += remainingBodyLength
+			if contentLength == len(r.Body) {
+				r.parseState = Done
+			}
+			if contentLength < len(r.Body) {
+				return 0, ERR_INVALID_CONTENT_LENGTH
 			}
 		case Done:
 			break outer
@@ -120,7 +149,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		buffLen -= buffN
 	}
 
-	request.Print()
+	// request.Print()
 	return request, nil
 }
 
