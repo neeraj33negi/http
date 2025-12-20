@@ -55,6 +55,8 @@ func (r *Request) Print() {
 	fmt.Printf("  - Target: %s\n", r.RequestLine.RequestTarget)
 	fmt.Printf("  - Version: %s\n", r.RequestLine.HttpVersion)
 	r.Headers.Print()
+	fmt.Println("Body:")
+	fmt.Println(string(r.Body))
 }
 
 func (rl *RequestLine) ValidHTTP() bool {
