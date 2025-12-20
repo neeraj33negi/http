@@ -1,26 +1,36 @@
 package main
 
 import (
-	"io"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/neeraj33negi/http/internal/request"
+	"github.com/neeraj33negi/http/internal/response"
 	"github.com/neeraj33negi/http/internal/server"
 )
 
 const port = 42069
 
 func main() {
-	handlerFunc := func(w io.Writer, r *request.Request) *server.HandlerError {
+	handlerFunc := func(w *response.Writer, r *request.Request) {
+		headers := response.GetDefaultHeaders(0)
+		var body []byte
 		if r.RequestLine.RequestTarget == "/foo" {
-			w.Write([]byte("bar"))
+			w.WriteStatusLine(response.StatusOk)
+			body = []byte("bar")
+		} else if r.RequestLine.RequestTarget == "/bar" {
+			w.WriteStatusLine(response.StatusOk)
+			body = []byte("baz")
 		} else {
-			w.Write([]byte("sup fool"))
+			w.WriteStatusLine(response.BadRequest)
+			body = []byte("<html>.\n\n.no html for you")
 		}
-		return nil
+		headers.Replace("Content-Length", fmt.Sprintf("%d", len(body)))
+		w.WriteHeaders(headers)
+		w.WriteBody(body)
 	}
 	server, err := server.Serve(port, handlerFunc)
 	if err != nil {

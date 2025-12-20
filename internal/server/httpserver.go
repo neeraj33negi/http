@@ -1,9 +1,7 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"net"
 
 	"github.com/neeraj33negi/http/internal/request"
@@ -14,7 +12,7 @@ type HandlerError struct {
 	Message string
 }
 
-type Handler func(w io.Writer, r *request.Request) *HandlerError
+type Handler func(w *response.Writer, r *request.Request)
 
 type Server struct {
 	closed  bool
@@ -24,25 +22,16 @@ type Server struct {
 func (s *Server) handle(conn net.Conn) {
 	// harcode for testing
 	defer conn.Close()
-	writer := bytes.NewBuffer([]byte{})
+	rWriter := response.NewWriter(conn)
 	h := response.GetDefaultHeaders(0)
 	r, err := request.RequestFromReader(conn)
 	if err != nil {
-		response.WriteStatusLine(conn, response.BadRequest)
-		response.WriteHeaders(conn, h)
+		rWriter.WriteStatusLine(response.BadRequest)
+		rWriter.WriteHeaders(h)
 		return
 	}
-	handlerError := s.handler(writer, r)
-	if handlerError != nil {
-		response.WriteStatusLine(conn, response.InternalServerError)
-		response.WriteHeaders(conn, h)
-		return
-	}
-	response.WriteStatusLine(conn, 200)
-	body := writer.Bytes()
-	h.Replace("Content-Length", fmt.Sprintf("%d", len(body)))
-	response.WriteHeaders(conn, h)
-	conn.Write(body)
+
+	s.handler(rWriter, r)
 }
 
 func (s *Server) Close() error {

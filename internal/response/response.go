@@ -9,6 +9,45 @@ import (
 
 type StatusCode int
 
+type Writer struct {
+	writer io.Writer
+}
+
+func NewWriter(w io.Writer) *Writer {
+	return &Writer{w}
+}
+
+func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
+	reason, err := reasonPhraseFor(statusCode)
+	if err != nil {
+		return err
+	}
+	b := []byte(reason)
+	b = fmt.Appendf(b, "\r\n")
+	_, err = w.writer.Write(b)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+	b := []byte{}
+	for _, k := range headers.FieldLines() {
+		b = fmt.Appendf(b, "%s:%s\r\n", k, headers.Get(k))
+	}
+	b = fmt.Appendf(b, "\r\n")
+	_, err := w.writer.Write(b)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	return w.writer.Write(p)
+}
+
 const (
 	StatusOk            = 200
 	BadRequest          = 400
