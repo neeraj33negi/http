@@ -29,6 +29,14 @@ func (h *Headers) Print() {
 	}
 }
 
+func (h *Headers) FieldLines() []string {
+	var fieldLines []string
+	for k := range h.headers {
+		fieldLines = append(fieldLines, k)
+	}
+	return fieldLines
+}
+
 func (h *Headers) Get(name string) string {
 	return h.headers[strings.ToLower(name)]
 }
