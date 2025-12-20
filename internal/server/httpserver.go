@@ -13,12 +13,12 @@ type Server struct {
 
 func (s *Server) handle(conn net.Conn) {
 	// harcode for testing
-	conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: text.plain\r\nContent-Length: 13\r\n\r\nHello World!\n"))
 	response.WriteStatusLine(conn, 200)
 	body := []byte("Hello World!\n")
 	h := response.GetDefaultHeaders(len(body))
 	response.WriteHeaders(conn, h)
-	conn.Close()
+	conn.Write(body)
+	defer conn.Close()
 }
 
 func (s *Server) Close() error {

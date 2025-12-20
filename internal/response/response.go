@@ -34,8 +34,9 @@ func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 	if err != nil {
 		return err
 	}
-	_, err = w.Write([]byte(reason))
-	w.Write([]byte("\r\n"))
+	b := []byte(reason)
+	b = fmt.Appendf(b, "\r\n")
+	_, err = w.Write(b)
 	if err != nil {
 		return err
 	}
@@ -51,12 +52,14 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 }
 
 func WriteHeaders(w io.Writer, headers headers.Headers) error {
+	b := []byte{}
 	for _, k := range headers.FieldLines() {
-		_, err := w.Write([]byte(fmt.Sprintf("%s:%s\r\n", k, headers.Get(k))))
-		if err != nil {
-			return err
-		}
+		b = fmt.Appendf(b, "%s:%s\r\n", k, headers.Get(k))
 	}
-	w.Write([]byte("\r\n"))
+	b = fmt.Appendf(b, "\r\n")
+	_, err := w.Write(b)
+	if err != nil {
+		return err
+	}
 	return nil
 }
