@@ -102,3 +102,18 @@ func WriteHeaders(w io.Writer, headers headers.Headers) error {
 	}
 	return nil
 }
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	fmt.Println(string(string(p)))
+	body := fmt.Sprintf("%x\r\n", len(p))
+	_, err := w.WriteBody([]byte(body))
+	if err != nil {
+		return 0, err
+	}
+	return w.WriteBody(p)
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	body := fmt.Sprintf("%x\r\n\r\n", 0)
+	return w.WriteBody([]byte(body))
+}

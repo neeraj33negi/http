@@ -49,6 +49,10 @@ func (h *Headers) Replace(name, value string) {
 	h.Put(name, value)
 }
 
+func (h *Headers) Delete(name string) {
+	delete(h.headers, strings.ToLower(name))
+}
+
 func parseHeader(fieldLine []byte) (string, string, error) {
 	parts := bytes.SplitN(fieldLine, []byte(":"), 2)
 	if len(parts) < 2 {
