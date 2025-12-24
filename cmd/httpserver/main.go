@@ -52,7 +52,7 @@ func main() {
 						break
 					}
 					w.WriteChunkedBody(data)
-					fullBody = fmt.Appendf(fullBody, string(data))
+					fullBody = fmt.Appendf(fullBody, "%s", string(data))
 				}
 				checksumHash := sha256.Sum256(fullBody)
 				hashStr := ""
@@ -66,6 +66,18 @@ func main() {
 				w.WriteChunkedBodyDone()
 				return
 			}
+		} else if r.RequestLine.RequestTarget == "/video" {
+			h.Replace("Content-Type", "video/mp4")
+			body, err := os.ReadFile("assets/vim.mp4")
+			if err != nil {
+				w.WriteStatusLine(response.InternalServerError)
+			} else {
+				w.WriteStatusLine(response.StatusOk)
+			}
+			h.Replace("Content-Length", fmt.Sprintf("%d", len(body)))
+			w.WriteHeaders(h)
+			w.WriteBody(body)
+			return
 		} else {
 			w.WriteStatusLine(response.BadRequest)
 			body = []byte("<html>.\n\n.no html for you")
